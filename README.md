@@ -1,4 +1,4 @@
-# nmr_prediction
+# nmr_mpnn
 Tensorflow implementation of the model described in the paper [Neural Message Passing for NMR Chemical Shift Prediction](#)
 
 ## Components

@@ -72,20 +72,23 @@ for i, mol in enumerate(molsuppl):
             edge[j, k, :] = bondFeatures(j, k, mol, rings)
             edge[k, j, :] = edge[j, k, :]
 
-    # property DY  
+    # property DY and mask DM
     props = molprops[i][0]
     mask = np.zeros((n_max, 1), dtype=np.int8)
     
+    property = []
+    
     if argv1 == '13C':
-        property = np.zeros((n_max, 1))
         for j in range(n_atom):
+            atom_property = []
             if j in props:
-                property[j] = props[j]
+                atom_property.append(props[j])
                 mask[j] = 1
                 assert mol.GetAtomWithIdx(j).GetAtomicNum()==6
+            
+            property.append(atom_property)
                 
     elif argv1 == '1H':
-        property = []    
         for j in range(n_atom):
             neighbors_property = []
             if mol.GetAtomWithIdx(j).GetAtomicNum() != 1:
@@ -95,9 +98,10 @@ for i, mol in enumerate(molsuppl):
                         neighbors_property.append(props[k])
                         mask[j] = 1
                         assert mol.GetAtomWithIdx(k).GetAtomicNum()==1
-                
-            property.append(neighbors_property)
-        property = np.array(property)
+            
+            property.append(neighbors_property)   
+
+    property = np.array(property)
 
     # compression
     del_ids = np.where(node[:,0]==1)[0]
@@ -114,7 +118,6 @@ for i, mol in enumerate(molsuppl):
         
     node = np.pad(node, ((0, n_max - node.shape[0]), (0, 0)))
     edge = np.pad(edge, ((0, n_max - edge.shape[0]), (0, n_max - edge.shape[1]), (0, 0))) 
-    if argv1 == '13C': property = np.pad(property, ((0, n_max - property.shape[0]), (0, 0)))   
     mask = np.pad(mask, ((0, n_max - mask.shape[0]), (0, 0)))
 
     # append
@@ -123,7 +126,7 @@ for i, mol in enumerate(molsuppl):
     DY.append(np.array(property))
     DM.append(np.array(mask))
     Dsmi.append(Chem.MolToSmiles(Chem.MolFromSmiles(Chem.MolToSmiles(mol))))
-
+    
     if i % 1000 == 0:
         print(i, current_max, flush=True)
 
@@ -136,7 +139,6 @@ Dsmi = np.asarray(Dsmi)
 
 DV = DV[:,:current_max,:]
 DE = DE[:,:current_max,:current_max,:]
-if argv1 == '13C': DY = DY[:,:current_max,:]
 DM = DM[:,:current_max,:]
 
 print(DV.shape, DE.shape, DY.shape, DM.shape)
@@ -144,7 +146,6 @@ print(DV.shape, DE.shape, DY.shape, DM.shape)
 # compression
 DV = sparse.COO.from_numpy(DV)
 DE = sparse.COO.from_numpy(DE)
-if argv1 != '1H': DY = sparse.COO.from_numpy(DY)
 DM = sparse.COO.from_numpy(DM)
 
 # save

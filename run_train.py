@@ -23,29 +23,15 @@ dim_edge=DE_trn.shape[3]
 # trn data processing
 DV_trn = DV_trn.todense()
 DE_trn = DE_trn.todense()
-
-if argv1 == '13C': DY_trn = DY_trn.todense()
-elif argv1 == '1H':
-    def list_to_mean(y):
-        vec = np.zeros((n_max, 1))
-        for i in range(len(y)):       
-            if len(y[i])>0: vec[i] = np.mean(y[i])
-        
-        return vec
-        
-    DY_trn = np.array([list_to_mean(y) for y in DY_trn])
-
 DM_trn = DM_trn.todense()
 
 # tst data processing
 DV_tst = DV_tst.todense()
 DE_tst = DE_tst.todense()
-if argv1 == '13C': DY_tst = DY_tst.todense()
 DM_tst = DM_tst.todense()
 
 DV_tst = np.pad(DV_tst, ((0, 0), (0, n_max - DV_tst.shape[1]), (0, 0)))
 DE_tst = np.pad(DE_tst, ((0, 0), (0, n_max - DE_tst.shape[1]), (0, n_max - DE_tst.shape[2]), (0, 0))) 
-if argv1 == '13C': DY_tst = np.pad(DY_tst, ((0, 0), (0, n_max - DY_tst.shape[1]), (0, 0)))   
 DM_tst = np.pad(DM_tst, ((0, 0), (0, n_max - DM_tst.shape[1]), (0, 0)))  
 
 #trn/val split

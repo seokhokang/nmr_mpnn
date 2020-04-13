@@ -36,16 +36,25 @@ class Model(object):
 
     def train(self, DV_trn, DE_trn, DY_trn, DM_trn, DV_val, DE_val, DY_val, DM_val, save_path):
 
+        def list_to_vec(y):
+            vec = np.zeros((DV_trn.shape[1], 1))
+            for i in range(len(y)):       
+                if len(y[i])>0: vec[i] = np.mean(y[i])
+            
+            return vec
+            
+        DY_trn = np.array([list_to_vec(y) for y in DY_trn])
+
         ## objective function
         reg = tf.square(tf.concat([tf.reshape(v, [-1]) for v in tf.trainable_variables()], 0))
         l2_loss = 1e-10 * tf.reduce_mean(reg)
         
         calib = np.std(DY_trn.flatten()[DM_trn.flatten()==1])
+        
         cost_Y = tf.reduce_sum( tf.abs((self.Y - self.Y_pred) / calib) * self.Y_mask ) / tf.reduce_sum(self.Y_mask)
 
         vars_MP = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='MP')
         vars_Y = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='Y')
-
 
         ## configurations
         max_epoch = 500
@@ -74,8 +83,6 @@ class Model(object):
 
                 start_=i*self.batch_size
                 end_=start_+self.batch_size
-                
-                assert self.batch_size == end_ - start_
 
                 trnresult = self.sess.run([train_op[lr_id], cost_Y],
                                           feed_dict = {self.node: DV_trn[start_:end_], self.edge: DE_trn[start_:end_], self.Y: DY_trn[start_:end_],
@@ -86,7 +93,7 @@ class Model(object):
             trn_log[epoch] = np.mean(trnscores) * calib     
 
             # validation
-            val_t[epoch] = self.test_mae(DV_val, DE_val, DY_val, DM_val, 5)  
+            val_t[epoch] = self.val_mae(DV_val, DE_val, DY_val, DM_val, 5)  
 
             print('--training with lr:', lr_list[lr_id], 'epoch id:', epoch, ' trn log:', trn_log[epoch], 'val MAE:', val_t[epoch], 'BEST:', np.min(val_t[0:epoch+1]))
 
@@ -97,29 +104,30 @@ class Model(object):
                 self.saver.restore(self.sess, save_path)
                 lr_epoch = epoch - 0
                 lr_id = lr_id + 1
-                print('----decrease the learning rate, current BEST: ', self.test_mae(DV_val, DE_val, DY_val, DM_val, 5))
+                print('----decrease the learning rate, current BEST: ', self.val_mae(DV_val, DE_val, DY_val, DM_val, 5))
                 if lr_id == len(lr_list): break
 
         print('----termination condition is met')
         self.saver.restore(self.sess, save_path)
         
     
+    def val_mae(self, DV, DE, DY, DM, m):
+    
+        mae = self.test_mae(DV, DE, DY, DM, m)
+        
+        return mae
+    
+    
     def test_mae(self, DV, DE, DY, DM, m):
     
         DY_hat = np.mean([self.test(DV, DE) * DM for i in range(m)], 0)
+
+        abs_err = []
+        for i, dy in enumerate(DY):
+            for j in range(len(dy)):
+                if len(dy[j]) > 0: abs_err = abs_err + np.abs(dy[j] - DY_hat[i,j]).tolist()
     
-        if len(DY.shape) == 1: #1H
-        
-            abs_err = []
-            for i, dy in enumerate(DY):
-                for j in range(len(dy)):
-                    if len(dy[j]) > 0: abs_err = abs_err + np.abs(dy[j] - DY_hat[i,j]).tolist()
-        
-            mae = np.mean( abs_err )
-            
-        else: #13C
-        
-            mae = np.mean( np.abs( DY.flatten()[DM.flatten()==1] - DY_hat.flatten()[DM.flatten()==1] ) )
+        mae = np.mean( abs_err )
         
         return mae
 
@@ -132,16 +140,16 @@ class Model(object):
         
             start_=i*self.batch_size
             end_=start_+self.batch_size
-            
-            assert self.batch_size == end_ - start_
 
             if len(DV[start_:end_]) == 0:
                 continue
+                
             elif len(DV[start_:end_]) < self.batch_size:
                 c_size = len(DV[start_:end_])
                 DY_batch = self.sess.run(self.Y_pred,
                                              feed_dict = {self.node: DV[-self.batch_size:], self.edge: DE[-self.batch_size:], self.trn_flag: trn_flag})
                 DY_batch = DY_batch[-c_size:]
+                
             else:
                 DY_batch = self.sess.run(self.Y_pred,
                                              feed_dict = {self.node: DV[start_:end_], self.edge: DE[start_:end_], self.trn_flag: trn_flag})

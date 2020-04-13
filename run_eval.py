@@ -23,12 +23,10 @@ dim_edge=DE_trn.shape[3]
 # tst data processing
 DV_tst = DV_tst.todense()
 DE_tst = DE_tst.todense()
-if argv1 == '13C': DY_tst = DY_tst.todense()
 DM_tst = DM_tst.todense()
 
 DV_tst = np.pad(DV_tst, ((0, 0), (0, n_max - DV_tst.shape[1]), (0, 0)))
-DE_tst = np.pad(DE_tst, ((0, 0), (0, n_max - DE_tst.shape[1]), (0, n_max - DE_tst.shape[2]), (0, 0))) 
-if argv1 == '13C': DY_tst = np.pad(DY_tst, ((0, 0), (0, n_max - DY_tst.shape[1]), (0, 0)))   
+DE_tst = np.pad(DE_tst, ((0, 0), (0, n_max - DE_tst.shape[1]), (0, n_max - DE_tst.shape[2]), (0, 0)))  
 DM_tst = np.pad(DM_tst, ((0, 0), (0, n_max - DM_tst.shape[1]), (0, 0)))  
 
 #summary stat
@@ -41,31 +39,27 @@ model = Model(n_max, dim_node, dim_edge)
 with model.sess:
     model.saver.restore(model.sess, save_path)  
     
+    print(':: MAE on test set', model.test_mae(DV_tst, DE_tst, DY_tst, DM_tst, 30))
+    
+    
     DY_tst_hat_list = [model.test(DV_tst, DE_tst) * DM_tst for _ in range(30)]
 
     DY_tst_hat_mean = np.mean(DY_tst_hat_list, 0)
     DY_tst_hat_std = np.std(DY_tst_hat_list, 0)
 
     # prediction
-    if len(DY_tst.shape) == 1: #1H
-    
-        abs_err = []
-        std_err = []
-        for i, dy in enumerate(DY_tst):
-            for j in range(len(dy)):
-                if len(dy[j]) > 0:
-                    abs_err = abs_err + np.abs(dy[j] - DY_tst_hat_mean[i,j]).tolist()
-                    std_err = std_err + np.repeat(DY_tst_hat_std[i,j], len(dy[j])).tolist()
-                  
-        assert len(abs_err) == len(std_err)
-        abs_err = np.array(abs_err)
-        std_err = np.array(std_err)
-        
-    else: #13C
-    
-        abs_err = np.abs( DY_tst.flatten()[DM_tst.flatten()==1] - DY_tst_hat_mean.flatten()[DM_tst.flatten()==1] )
-        std_err = DY_tst_hat_std.flatten()[DM_tst.flatten()==1]
+    abs_err = []
+    std_err = []
+    for i, dy in enumerate(DY_tst):
+        for j in range(len(dy)):
+            if len(dy[j]) > 0:
+                abs_err = abs_err + np.abs(dy[j] - DY_tst_hat_mean[i,j]).tolist()
+                std_err = std_err + np.repeat(DY_tst_hat_std[i,j], len(dy[j])).tolist()
 
+    abs_err = np.array(abs_err)
+    std_err = np.array(std_err)
+    assert abs_err.shape == std_err.shape
+    
 
     # evaluation of prediction performance
     print('-- prediction performance evaluation')
@@ -81,33 +75,25 @@ with model.sess:
     
     
     # evaluation of molecule search
-    print('-- molecule search performance evaluation')
-    if len(DY_tst.shape) == 1: #1H 
-        
-        DY_tst_sort = []
-        DY_tst_hat_sort = []
-        for i, dy in enumerate(DY_tst):
-            dy_aggr = []
-            dy_hat_aggr = []
-            for j in range(len(dy)):
-                if len(dy[j]) > 0:
-                    dy_aggr = dy_aggr + dy[j]
-                    dy_hat_aggr = dy_hat_aggr + np.repeat(DY_tst_hat_mean[i,j], len(dy[j])).tolist()
-            
-            DY_tst_sort.append(np.sort(dy_aggr))
-            DY_tst_hat_sort.append(np.sort(dy_hat_aggr))
-
-        DY_tst_sort = np.array(DY_tst_sort)
-        DY_tst_hat_sort = np.array(DY_tst_hat_sort)
-        DM_tst_cnt = np.array([len(dy) for dy in DY_tst_sort])
-
-    else:
-
-        DY_tst_sort = np.sort(DY_tst + 1e9 * (DM_tst-1), 1)
-        DY_tst_hat_sort = np.sort(DY_tst_hat_mean + 1e9 * (DM_tst-1), 1)
-        
-        DM_tst_cnt = np.sum(DM_tst, (1,2))
+    print('-- molecule search performance evaluation') 
     
+    DY_tst_sort = []
+    DY_tst_hat_sort = []
+    for i, dy in enumerate(DY_tst):
+        dy_aggr = []
+        dy_hat_aggr = []
+        for j in range(len(dy)):
+            if len(dy[j]) > 0:
+                dy_aggr = dy_aggr + dy[j]
+                dy_hat_aggr = dy_hat_aggr + np.repeat(DY_tst_hat_mean[i,j], len(dy[j])).tolist()
+        
+        DY_tst_sort.append(np.sort(dy_aggr))
+        DY_tst_hat_sort.append(np.sort(dy_hat_aggr))
+
+    DY_tst_sort = np.array(DY_tst_sort)
+    DY_tst_hat_sort = np.array(DY_tst_hat_sort)
+    DM_tst_cnt = np.array([len(dy) for dy in DY_tst_sort])
+
     
     search_res = []
     for i in range(len(DV_tst)):

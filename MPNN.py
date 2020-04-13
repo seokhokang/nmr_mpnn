@@ -113,14 +113,14 @@ class Model(object):
     
     def val_mae(self, DV, DE, DY, DM, m):
     
-        mae = self.test_mae(DV, DE, DY, DM, m)
+        mae = self.test_mae(DV, DE, DY, m)
         
         return mae
     
     
-    def test_mae(self, DV, DE, DY, DM, m):
+    def test_mae(self, DV, DE, DY, m):
     
-        DY_hat = np.mean([self.test(DV, DE) * DM for i in range(m)], 0)
+        DY_hat = np.mean([self.test(DV, DE) for i in range(m)], 0)
 
         abs_err = []
         for i, dy in enumerate(DY):

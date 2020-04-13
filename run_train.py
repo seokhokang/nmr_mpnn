@@ -13,7 +13,7 @@ save_path=save_dict+'model_'+argv1+'.ckpt'
 
 # import data
 with open(data1_path,'rb') as f: [DV_trn, DE_trn, DY_trn, DM_trn, Dsmi_trn] = pkl.load(f)
-with open(data2_path,'rb') as f: [DV_tst, DE_tst, DY_tst, DM_tst, Dsmi_tst] = pkl.load(f)
+with open(data2_path,'rb') as f: [DV_tst, DE_tst, DY_tst, _, Dsmi_tst] = pkl.load(f)
 
 # basic hyperparam
 n_max=DV_trn.shape[1]
@@ -28,11 +28,9 @@ DM_trn = DM_trn.todense()
 # tst data processing
 DV_tst = DV_tst.todense()
 DE_tst = DE_tst.todense()
-DM_tst = DM_tst.todense()
 
 DV_tst = np.pad(DV_tst, ((0, 0), (0, n_max - DV_tst.shape[1]), (0, 0)))
 DE_tst = np.pad(DE_tst, ((0, 0), (0, n_max - DE_tst.shape[1]), (0, n_max - DE_tst.shape[2]), (0, 0))) 
-DM_tst = np.pad(DM_tst, ((0, 0), (0, n_max - DM_tst.shape[1]), (0, 0)))  
 
 #trn/val split
 DV_trn, DV_val, DE_trn, DE_val, DY_trn, DY_val, DM_trn, DM_val = train_test_split(DV_trn, DE_trn, DY_trn, DM_trn, test_size=0.05)
@@ -40,7 +38,7 @@ DV_trn, DV_val, DE_trn, DE_val, DY_trn, DY_val, DM_trn, DM_val = train_test_spli
 #summary stat
 print(DV_trn.shape, DE_trn.shape, DY_trn.shape, DM_trn.shape)
 print(DV_val.shape, DE_val.shape, DY_val.shape, DM_val.shape)
-print(DV_tst.shape, DE_tst.shape, DY_tst.shape, DM_tst.shape)
+print(DV_tst.shape, DE_tst.shape, DY_tst.shape)
 
 # model
 model = Model(n_max, dim_node, dim_edge)
@@ -49,4 +47,4 @@ model = Model(n_max, dim_node, dim_edge)
 with model.sess:
     model.train(DV_trn, DE_trn, DY_trn, DM_trn, DV_val, DE_val, DY_val, DM_val, save_path)
     
-    print(':: MAE on test set', model.test_mae(DV_tst, DE_tst, DY_tst, DM_tst, 30))
+    print(':: MAE on test set', model.test_mae(DV_tst, DE_tst, DY_tst, 30))

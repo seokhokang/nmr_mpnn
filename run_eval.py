@@ -13,7 +13,7 @@ save_path=save_dict+'model_'+argv1+'.ckpt'
 
 # import data
 with open(data1_path,'rb') as f: [DV_trn, DE_trn, DY_trn, DM_trn, Dsmi_trn] = pkl.load(f)
-with open(data2_path,'rb') as f: [DV_tst, DE_tst, DY_tst, DM_tst, Dsmi_tst] = pkl.load(f)
+with open(data2_path,'rb') as f: [DV_tst, DE_tst, DY_tst, _, Dsmi_tst] = pkl.load(f)
 
 # basic hyperparam
 n_max=DV_trn.shape[1]
@@ -23,14 +23,12 @@ dim_edge=DE_trn.shape[3]
 # tst data processing
 DV_tst = DV_tst.todense()
 DE_tst = DE_tst.todense()
-DM_tst = DM_tst.todense()
 
 DV_tst = np.pad(DV_tst, ((0, 0), (0, n_max - DV_tst.shape[1]), (0, 0)))
-DE_tst = np.pad(DE_tst, ((0, 0), (0, n_max - DE_tst.shape[1]), (0, n_max - DE_tst.shape[2]), (0, 0)))  
-DM_tst = np.pad(DM_tst, ((0, 0), (0, n_max - DM_tst.shape[1]), (0, 0)))  
+DE_tst = np.pad(DE_tst, ((0, 0), (0, n_max - DE_tst.shape[1]), (0, n_max - DE_tst.shape[2]), (0, 0)))
 
 #summary stat
-print(DV_tst.shape, DE_tst.shape, DY_tst.shape, DM_tst.shape)
+print(DV_tst.shape, DE_tst.shape, DY_tst.shape)
 
 # model
 model = Model(n_max, dim_node, dim_edge)
@@ -39,10 +37,10 @@ model = Model(n_max, dim_node, dim_edge)
 with model.sess:
     model.saver.restore(model.sess, save_path)  
     
-    print(':: MAE on test set', model.test_mae(DV_tst, DE_tst, DY_tst, DM_tst, 30))
+    print(':: MAE on test set', model.test_mae(DV_tst, DE_tst, DY_tst, 30))
     
     
-    DY_tst_hat_list = [model.test(DV_tst, DE_tst) * DM_tst for _ in range(30)]
+    DY_tst_hat_list = [model.test(DV_tst, DE_tst) for _ in range(30)]
 
     DY_tst_hat_mean = np.mean(DY_tst_hat_list, 0)
     DY_tst_hat_std = np.std(DY_tst_hat_list, 0)
@@ -56,9 +54,9 @@ with model.sess:
                 abs_err = abs_err + np.abs(dy[j] - DY_tst_hat_mean[i,j]).tolist()
                 std_err = std_err + np.repeat(DY_tst_hat_std[i,j], len(dy[j])).tolist()
 
+    assert len(abs_err) == len(std_err)
     abs_err = np.array(abs_err)
-    std_err = np.array(std_err)
-    assert abs_err.shape == std_err.shape
+    std_err = np.array(std_err)    
     
 
     # evaluation of prediction performance
@@ -87,6 +85,7 @@ with model.sess:
                 dy_aggr = dy_aggr + dy[j]
                 dy_hat_aggr = dy_hat_aggr + np.repeat(DY_tst_hat_mean[i,j], len(dy[j])).tolist()
         
+        assert len(dy_aggr) == len(dy_hat_aggr)
         DY_tst_sort.append(np.sort(dy_aggr))
         DY_tst_hat_sort.append(np.sort(dy_hat_aggr))
 

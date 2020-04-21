@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 
 class Model(object):
 
@@ -34,22 +35,23 @@ class Model(object):
         self.sess = tf.Session()
 
 
-    def train(self, DV_trn, DE_trn, DY_trn, DM_trn, DV_val, DE_val, DY_val, DM_val, save_path):
+    def train(self, DV, DE, DY, DM, save_path, frac_val = 0.05):
 
         def list_to_vec(y):
-            vec = np.zeros((DV_trn.shape[1], 1))
+            vec = np.zeros((self.n_node, 1))
             for i in range(len(y)):       
                 if len(y[i])>0: vec[i] = np.mean(y[i])
             
             return vec
-            
+        
+        DV_trn, DV_val, DE_trn, DE_val, DY_trn, DY_val, DM_trn, DM_val = train_test_split(DV, DE, DY, DM, test_size = frac_val)    
         DY_trn = np.array([list_to_vec(y) for y in DY_trn])
 
         ## objective function
         reg = tf.square(tf.concat([tf.reshape(v, [-1]) for v in tf.trainable_variables()], 0))
         l2_loss = 1e-10 * tf.reduce_mean(reg)
         
-        calib = np.std(DY_trn.flatten()[DM_trn.flatten()==1])
+        calib = np.std(DY_trn.flatten()[DM_trn.flatten() > 0])
         
         cost_Y = tf.reduce_sum( tf.abs((self.Y - self.Y_pred) / calib) * self.Y_mask ) / tf.reduce_sum(self.Y_mask)
 

@@ -10,7 +10,9 @@ Tensorflow implementation of the model described in the paper [Neural Message Pa
 
 ## Data
 - **NMRShiftDB2** - https://nmrshiftdb.nmr.uni-koeln.de/
-- Redistribution - https://static-content.springer.com/esm/art%3A10.1186%2Fs13321-019-0374-3/MediaObjects/13321_2019_374_MOESM2_ESM.gz
+- The datasets used in the paper can be downloaded from
+  - https://jcheminf.biomedcentral.com/articles/10.1186/s13321-019-0374-3
+  - https://static-content.springer.com/esm/art%3A10.1186%2Fs13321-019-0374-3/MediaObjects/13321_2019_374_MOESM2_ESM.gz
 
 ## Dependencies
 - **Python**

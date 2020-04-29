@@ -21,3 +21,17 @@ Tensorflow implementation of the model described in the paper [Neural Message Pa
 - **NumPy**
 - **scikit-learn**
 - **sparse**
+
+## Citation
+```
+@Article{Kwon2020,
+  title={Neural message passing for NMR chemical shift prediction},
+  author={Kwon, Youngchun and Lee, Dongseon and Choi, Youn-Suk and Kang, Myeonginn and Kang, Seokho},
+  journal={Journal of Chemical Information and Modeling},
+  volume={60},
+  number={4},
+  pages={2024-2030},
+  year={2020},
+  doi={10.1021/acs.jcim.0c00195}
+}
+```

@@ -1,130 +1,153 @@
 import numpy as np
 import pickle as pkl
-import os, sys, sparse, warnings
+import os, sys, sparse
 from util import atomFeatures, bondFeatures
 from rdkit import Chem, RDConfig, rdBase
 from rdkit.Chem import AllChem, ChemicalFeatures
-import pandas as pds
 
-warnings.filterwarnings('ignore')
+argv1 = sys.argv[1]#'1H' '13C'#
+argv2 = sys.argv[2]#'train' 'test'
+
+suppl = pkl.load(open('data_'+argv1+'.pickle','rb'))
+mol_trn = suppl[argv2+'_df']
+
+molsuppl = mol_trn['rdmol'].to_list()
+molprops = mol_trn['value'].to_list()
+
+n_max=64
+dim_node=30
+dim_edge=10
+atom_list=['H','C','N','O','F','P','S','Cl']
 
 rdBase.DisableLog('rdApp.error') 
 rdBase.DisableLog('rdApp.warning')
-
+        
 fdef_name = os.path.join(RDConfig.RDDataDir, 'BaseFeatures.fdef')
 chem_feature_factory = ChemicalFeatures.BuildFeatureFactory(fdef_name)
 
-    
-data_path = './reaction_data.pkl'
-with open(data_path, 'rb') as f:
-    [X_list, Y_list] = pkl.load(f)
+current_max = 0
 
-n_max = 60
-atom_list = ['C','O','N','Cl','F','S','Br','Na','P','K','B','I','Pd','Si','H','Li','Cs','Al','Fe','Cu','Mg','Sn','Zn','others']
-dim_node = len(atom_list) + 22
-dim_edge = 10
-
-DV1 = sparse.COO.from_numpy(np.empty(shape=(0, n_max, dim_node), dtype=np.int8))
-DE1 = sparse.COO.from_numpy(np.empty(shape=(0, n_max, n_max, dim_edge), dtype=np.int8)) 
-DV2 = sparse.COO.from_numpy(np.empty(shape=(0, n_max, dim_node), dtype=np.int8))
-DE2 = sparse.COO.from_numpy(np.empty(shape=(0, n_max, n_max, dim_edge), dtype=np.int8)) 
-DV3 = sparse.COO.from_numpy(np.empty(shape=(0, n_max, dim_node), dtype=np.int8))
-DE3 = sparse.COO.from_numpy(np.empty(shape=(0, n_max, n_max, dim_edge), dtype=np.int8)) 
+DV = []
+DE = []
 DY = []
+DM = []
+Dsmi = []
+for i, mol in enumerate(molsuppl):
 
-print(len(X_list))
-
-for xid, X in enumerate(X_list):
-
-    Y = Y_list[xid]
-      
-    mol1 = Chem.MolFromSmiles(X.split(' ')[0])
-    mol2 = Chem.MolFromSmiles(X.split(' ')[1])
-    mol3 = Chem.MolFromSmiles(X.split(' ')[2])
-
-    if mol1.GetNumAtoms() > n_max or mol2.GetNumAtoms() > n_max or mol3.GetNumAtoms() > n_max: continue
-
-    rings1 = mol1.GetRingInfo().AtomRings() 
-    rings2 = mol2.GetRingInfo().AtomRings() 
-    rings3 = mol3.GetRingInfo().AtomRings()      
+    try:
+        Chem.SanitizeMol(mol)
+    except:
+        continue
     
-    feats1 = chem_feature_factory.GetFeaturesForMol(mol1)
-    donor_list1 = []
-    acceptor_list1 = []
-    for j in range(len(feats1)):
-        if feats1[j].GetFamily() == 'Donor':
-            donor_list1.append(feats1[j].GetAtomIds()[0])
-        elif feats1[j].GetFamily() == 'Acceptor':
-            acceptor_list1.append(feats1[j].GetAtomIds()[0])
-
-    feats2 = chem_feature_factory.GetFeaturesForMol(mol2)
-    donor_list2 = []
-    acceptor_list2 = []
-    for j in range(len(feats2)):
-        if feats2[j].GetFamily() == 'Donor':
-            donor_list2.append(feats2[j].GetAtomIds()[0])
-        elif feats2[j].GetFamily() == 'Acceptor':
-            acceptor_list2.append(feats2[j].GetAtomIds()[0])
-
-    feats3 = chem_feature_factory.GetFeaturesForMol(mol3)
-    donor_list3 = []
-    acceptor_list3 = []
-    for j in range(len(feats3)):
-        if feats3[j].GetFamily() == 'Donor':
-            donor_list3.append(feats3[j].GetAtomIds()[0])
-        elif feats3[j].GetFamily() == 'Acceptor':
-            acceptor_list3.append(feats3[j].GetAtomIds()[0])
-
+    if '.' in Chem.MolToSmiles(mol):
+        continue
+        
+    Chem.rdmolops.AssignAtomChiralTagsFromStructure(mol)
+    Chem.rdmolops.AssignStereochemistry(mol)   
+    
+    n_atom = mol.GetNumAtoms()
+    
+    rings = mol.GetRingInfo().AtomRings() 
+    
+    feats = chem_feature_factory.GetFeaturesForMol(mol)
+    donor_list = []
+    acceptor_list = []
+    for j in range(len(feats)):
+        if feats[j].GetFamily() == 'Donor':
+            assert len(feats[j].GetAtomIds())==1
+            donor_list.append (feats[j].GetAtomIds()[0])
+        elif feats[j].GetFamily() == 'Acceptor':
+            assert len(feats[j].GetAtomIds())==1
+            acceptor_list.append (feats[j].GetAtomIds()[0])
+    
     # node DV
-    node1 = np.zeros((n_max, dim_node), dtype=np.int8)
-    for j in range(mol1.GetNumAtoms()):
-        node1[j, :] = atomFeatures(j, mol1, rings1, atom_list, donor_list1, acceptor_list1)
-
-    node2 = np.zeros((n_max, dim_node), dtype=np.int8)
-    for j in range(mol2.GetNumAtoms()):
-        node2[j, :] = atomFeatures(j, mol2, rings2, atom_list, donor_list2, acceptor_list3)
-
-    node3 = np.zeros((n_max, dim_node), dtype=np.int8)
-    for j in range(mol3.GetNumAtoms()):
-        node3[j, :] = atomFeatures(j, mol3, rings3, atom_list, donor_list3, acceptor_list3)
-
+    node = np.zeros((n_max, dim_node), dtype=np.int8)
+    for j in range(n_atom):
+        node[j, :] = atomFeatures(j, mol, rings, atom_list, donor_list, acceptor_list)
+    
     # edge DE
-    edge1 = np.zeros((n_max, n_max, dim_edge), dtype=np.int8)
-    for j in range(mol1.GetNumAtoms() - 1):
-        for k in range(j + 1, mol1.GetNumAtoms()):
-            edge1[j, k, :] = bondFeatures(j, k, mol1, rings1)
-            edge1[k, j, :] = edge1[j, k, :]
+    edge = np.zeros((n_max, n_max, dim_edge), dtype=np.int8)
+    for j in range(n_atom - 1):
+        for k in range(j + 1, n_atom):
+            edge[j, k, :] = bondFeatures(j, k, mol, rings)
+            edge[k, j, :] = edge[j, k, :]
 
-    edge2 = np.zeros((n_max, n_max, dim_edge), dtype=np.int8)
-    for j in range(mol2.GetNumAtoms() - 1):
-        for k in range(j + 1, mol2.GetNumAtoms()):
-            edge2[j, k, :] = bondFeatures(j, k, mol2, rings2)
-            edge2[k, j, :] = edge2[j, k, :]
+    # property DY and mask DM
+    props = molprops[i][0]
+    mask = np.zeros((n_max, 1), dtype=np.int8)
+    
+    property = []
+    
+    if argv1 == '13C':
+        for j in range(n_atom):
+            atom_property = []
+            if j in props:
+                atom_property.append(props[j])
+                mask[j] = 1
+                assert mol.GetAtomWithIdx(j).GetAtomicNum()==6
+            
+            property.append(atom_property)
+                
+    elif argv1 == '1H':
+        for j in range(n_atom):
+            neighbors_property = []
+            if mol.GetAtomWithIdx(j).GetAtomicNum() != 1:
+                neighbors_id = [a.GetIdx() for a in mol.GetAtomWithIdx(j).GetNeighbors()]
+                for k in neighbors_id:
+                    if k in props:
+                        neighbors_property.append(props[k])
+                        mask[j] = 1
+                        assert mol.GetAtomWithIdx(k).GetAtomicNum()==1
+            
+            property.append(neighbors_property)   
 
-    edge3 = np.zeros((n_max, n_max, dim_edge), dtype=np.int8)
-    for j in range(mol3.GetNumAtoms() - 1):
-        for k in range(j + 1, mol3.GetNumAtoms()):
-            edge3[j, k, :] = bondFeatures(j, k, mol3, rings3)
-            edge3[k, j, :] = edge3[j, k, :]
+    property = np.array(property)
+
+    # compression
+    del_ids = np.where(node[:,0]==1)[0]
+
+    node = np.delete(node, del_ids, 0)
+    node = np.delete(node, [0], 1)
+    edge = np.delete(edge, del_ids, 0)
+    edge = np.delete(edge, del_ids, 1)
+    property = np.delete(property, del_ids, 0)
+    mask = np.delete(mask, del_ids, 0)
+
+    if current_max < mol.GetNumHeavyAtoms():
+        current_max = mol.GetNumHeavyAtoms()
+        
+    node = np.pad(node, ((0, n_max - node.shape[0]), (0, 0)))
+    edge = np.pad(edge, ((0, n_max - edge.shape[0]), (0, n_max - edge.shape[1]), (0, 0))) 
+    mask = np.pad(mask, ((0, n_max - mask.shape[0]), (0, 0)))
 
     # append
-    DV1 = np.concatenate([DV1, sparse.COO.from_numpy([node1])], 0)
-    DE1 = np.concatenate([DE1, sparse.COO.from_numpy([edge1])], 0)
-    DV2 = np.concatenate([DV2, sparse.COO.from_numpy([node2])], 0)
-    DE2 = np.concatenate([DE2, sparse.COO.from_numpy([edge2])], 0)
-    DV3 = np.concatenate([DV3, sparse.COO.from_numpy([node3])], 0)
-    DE3 = np.concatenate([DE3, sparse.COO.from_numpy([edge3])], 0)
-    DY.append(Y)
-
-    if xid % 10000 == 0:
-        print(xid, len(DV1), X, Y, flush=True)
-        #print(xid, Chem.MolToSmiles(mol1), Chem.MolToSmiles(mol2), Y, flush=True)
+    DV.append(np.array(node))
+    DE.append(np.array(edge))
+    DY.append(np.array(property))
+    DM.append(np.array(mask))
+    Dsmi.append(Chem.MolToSmiles(Chem.MolFromSmiles(Chem.MolToSmiles(mol))))
+    
+    if i % 1000 == 0:
+        print(i, current_max, flush=True)
 
 # np array    
+DV = np.asarray(DV, dtype=np.int8)
+DE = np.asarray(DE, dtype=np.int8)
 DY = np.asarray(DY)
+DM = np.asarray(DM, dtype=np.int8)
+Dsmi = np.asarray(Dsmi)
 
-print(DV1.shape, DE1.shape, DV2.shape, DE2.shape, DV3.shape, DE3.shape, DY.shape)
+DV = DV[:,:current_max,:]
+DE = DE[:,:current_max,:current_max,:]
+DM = DM[:,:current_max,:]
+
+print(DV.shape, DE.shape, DY.shape, DM.shape)
+
+# compression
+DV = sparse.COO.from_numpy(DV)
+DE = sparse.COO.from_numpy(DE)
+DM = sparse.COO.from_numpy(DM)
 
 # save
-with open('reaction_graph_da.pkl','wb') as fw:
-    pkl.dump([DV1, DE1, DV2, DE2, DV3, DE3, DY], fw)
+with open('graph_'+argv1+'_'+argv2+'.pickle','wb') as fw:
+    pkl.dump([DV, DE, DY, DM, Dsmi], fw)
